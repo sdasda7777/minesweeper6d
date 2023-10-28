@@ -1,9 +1,8 @@
 name: Rust Release
 
-on: workflow_dispatch
-
-env:
-  CARGO_TERM_COLOR: always
+on:
+  release:
+    types: [created]
 
 jobs:
   release:
@@ -23,10 +22,3 @@ jobs:
           TOOLCHAIN_VERSION: nightly
           RUSTTARGET: ${{ matrix.target }}
           EXTRA_FILES: "README.md LICENSE config.toml"
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: Binary
-          path: |
-            ${{ steps.compile.outputs.BUILT_ARCHIVE }}
-            ${{ steps.compile.outputs.BUILT_CHECKSUM }}
