@@ -1,0 +1,55 @@
+
+# Default view settings
+show_timer_miliseconds = false
+show_delta = true
+show_neighbors = true
+unlimited_zoom = false # enabling may lead to extreme increase in memory usage
+probe_marked = false
+tile_spacings = [0.0, 0.0, 10.0, 10.0]
+
+# YELLOW, BROWN, LIGHT_GREEN, WHITE, KHAKI, DARK_BLUE, DARK_GREEN, GOLD
+highlight_colors = [ "#FFFF00", "#A52A2A", "#90EE90", "#FFFFFF", "#F0E68C", "#000088", "#006400", "#FFD700" ]
+
+# Default values for a new game
+default_preset = 6
+
+[[preset]]
+name = "2D Minesweeper - Beginner"
+size = [9, 9, 1, 1, 1, 1]
+mines = 10
+
+[[preset]]
+name = "2D Minesweeper - Intermediate"
+size = [16, 16, 1, 1, 1, 1]
+mines = 40
+
+[[preset]]
+name = "2D Minesweeper - Expert"
+size = [30, 16, 1, 1, 1, 1]
+mines = 99
+
+[[preset]]
+name = "3D Minesweeper - Rubik"
+size = [3, 3, 3, 1, 1, 1]
+mines = 5
+
+[[preset]]
+name = "4D Minesweeper - Sudoku"
+size = [3, 3, 3, 3, 1, 1]
+mines = 15
+
+[[preset]]
+name = "4D Minesweeper - Elevator"
+size = [4, 4, 3, 4, 1, 1]
+wrap = [false, false, false, true, false, false]
+mines = 15
+
+[[preset]]
+name = "4D Minesweeper - 4^4"
+size = [4, 4, 4, 4, 1, 1]
+mines = 20
+
+[[preset]]
+name = "6D Minesweeper - 3^6"
+size = [3, 3, 3, 3, 3, 3]
+mines = 60
