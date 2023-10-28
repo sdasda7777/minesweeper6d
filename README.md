@@ -6,4 +6,4 @@ Minesweeper in 6D with:
 
 ![image](screenshots/screenshot01.png)
 
-![image](screenshots/screenshot01.png)
+![image](screenshots/screenshot02.png)
