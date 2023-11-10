@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [ {name: x86_64-pc-windows-gnu, static_linking: true}, {name: x86_64-unknown-linux-musl, static_linking: false} ]
+        target: [ {name: x86_64-pc-windows-gnu}, {name: x86_64-unknown-linux-musl} ]
     steps:
       - uses: actions/checkout@master
       - name: Compile and release
@@ -21,5 +21,5 @@ jobs:
         with:
           TOOLCHAIN_VERSION: nightly
           RUSTTARGET: ${{ matrix.target.name }}
-          STATIC_LINKING: ${{ matrix.target.static_linking }}
+          STATIC_LINKING: true
           EXTRA_FILES: "README.md LICENSE config.toml"
