@@ -1,6 +1,6 @@
 
 extern crate rand;
-use bwi::BWI;
+use crate::bwi::BWI;
 use rand_chacha::{ChaCha8Rng, rand_core::SeedableRng};
 use self::rand::Rng;
 use std::collections::VecDeque;
