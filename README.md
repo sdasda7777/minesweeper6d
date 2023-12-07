@@ -15,6 +15,8 @@ Minesweeper in 6D written in safe Rust with:
 
 You can play online through https://sdasda7777.github.io/minesweeper6d/
 
+(beware, performance is a lot worse compared to native builds)
+
 ### On Windows
 
 You can use prebuild binary from [releases](https://github.com/sdasda7777/minesweeper6d/releases ).
