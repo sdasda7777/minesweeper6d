@@ -21,7 +21,8 @@ use eframe::{egui, emath::Align2};
 use eframe::egui::{Button, containers::panel::TopBottomPanel, Key, KeyboardShortcut, 
                    menu, Modifiers, PointerButton, Response, RichText, Sense};
 use eframe::epaint::{Color32, FontId, Pos2, Rect, Rounding, Shadow, Shape, Stroke};
-use std::{cmp::min, fs, time::SystemTime};
+use std::{cmp::min, fs};
+use web_time::SystemTime;
 use toml::Table;
 
 #[derive(PartialEq)]
