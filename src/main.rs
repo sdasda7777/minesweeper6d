@@ -21,7 +21,7 @@ use eframe::{egui, emath::Align2};
 use eframe::egui::{Button, containers::panel::TopBottomPanel, Key, KeyboardShortcut, 
                    menu, Modifiers, PointerButton, Response, RichText, Sense};
 use eframe::epaint::{Color32, FontId, Pos2, Rect, Rounding, Shadow, Shape, Stroke};
-use std::{cmp::min, fs};
+use std::{cmp::min, fs, env};
 use web_time::SystemTime;
 use toml::Table;
 
@@ -306,6 +306,11 @@ impl Default for MinesweeperViewController {
         // Sanity check
         //println!("{}", std::mem::size_of::<CellState>());
         
+        match env::current_dir() {
+            Ok(p) => println!("The current directory is {}", p.display()),
+            Err(_) => println!("The current directory cannot be obtained")
+        };
+
         let settings = InitialGameSettings {
             name: "Custom".into(),
             size: [4, 4, 4, 4, 1, 1],
@@ -354,9 +359,15 @@ impl Default for MinesweeperViewController {
             shortcuts: Shortcuts::new(),
         };
         
-        let config_text = fs::read_to_string("config.toml").unwrap_or_else(|_| "".into());
+        let config_text = match fs::read_to_string("config.toml") {
+            Ok(s) => s,
+            Err(_) => {
+                println!("config could not be read");
+                "".into()
+            }
+        }; //.unwrap_or_else(|_| "".into());
         let config_table: Table = config_text.parse::<Table>().expect("Invalid configuration file");
-        
+
         // Load in presets
         if let Some(val) = config_table.get("preset"){
             for e in val.as_array().unwrap() {
