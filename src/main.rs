@@ -21,7 +21,7 @@ use eframe::{egui, emath::Align2};
 use eframe::egui::{Button, containers::panel::TopBottomPanel, Key, KeyboardShortcut, 
                    menu, Modifiers, PointerButton, Response, RichText, Sense};
 use eframe::epaint::{Color32, FontId, Pos2, Rect, Rounding, Shadow, Shape, Stroke};
-use std::{cmp::min, fs, env};
+use std::{cmp::min, fs};
 use web_time::SystemTime;
 use toml::Table;
 
@@ -73,6 +73,8 @@ fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         ..Default::default()
     };
+    let config_content = fs::read_to_string("config.toml").unwrap_or_else(|_| "".into());
+
     eframe::run_native(
         "Minesweeper6D",
         options,
@@ -83,7 +85,7 @@ fn main() -> Result<(), eframe::Error> {
                 style.visuals.window_rounding = Rounding::ZERO;
                 style.visuals.window_shadow = Shadow::NONE;
             });
-            Box::<MinesweeperViewController>::default()
+            Box::new(MinesweeperViewController::new(config_content))
         }),
     )
 }
@@ -95,13 +97,22 @@ fn main() {
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();
 
     let web_options = eframe::WebOptions::default();
-
+    let config_content = "".into();
+    
     wasm_bindgen_futures::spawn_local(async {
         eframe::WebRunner::new()
             .start(
                 "the_canvas_id", // hardcode it
                 web_options,
-                Box::new(|cc| Box::<MinesweeperViewController>::default()),
+                Box::new(|cc| {
+                    cc.egui_ctx.style_mut(|style| {
+                        style.visuals.menu_rounding = Rounding::ZERO;
+                        style.visuals.popup_shadow = Shadow::NONE;
+                        style.visuals.window_rounding = Rounding::ZERO;
+                        style.visuals.window_shadow = Shadow::NONE;
+                    });
+                    Box::new(MinesweeperViewController::new(config_content))
+                }),
             )
             .await
             .expect("failed to start eframe");
@@ -148,6 +159,183 @@ struct MinesweeperViewController {
 }
 
 impl MinesweeperViewController {
+    fn new(config_text: String) -> Self {
+        // Sanity check
+        //println!("{}", std::mem::size_of::<CellState>());
+
+        let settings = InitialGameSettings {
+            name: "Custom".into(),
+            size: [4, 4, 4, 4, 1, 1],
+            wrap: [false, false, false, false, false, false],
+            mines: 20,
+            seed: None,
+        };
+        
+        let mut ret = Self {
+            current_initial_settings: settings.clone(),
+            next_initial_settings: settings,
+            
+            next_selected_preset: None,
+            presets: vec![],
+            
+            game: None,
+            start_time: None,
+            end_time: None,
+            
+            cursor_mode: CursorMode::ProbeAndMark,
+            selected_highlighters: 1,
+            
+            view_origin: Pos2::new(0.0, 20.0),
+            zoom_factor: 1.0,
+            cell_edge: 30.0,
+            tile_spacings: [0.0, 0.0, 10.0, 10.0, 20.0, 20.0],
+            
+            show_timer_miliseconds: false,
+            show_delta: true,
+            show_neighbors: true,
+            unlimited_zoom: false,
+            probe_marked: false,
+            neighbor_coords: None,
+            
+            new_game_window_enabled: false,
+            rules_window_enabled: false,
+            controls_window_enabled: false,
+            about_window_enabled: false,
+            
+            selection_color: Color32::RED,
+            center_color: Color32::LIGHT_RED,
+            neighbor_color: Color32::LIGHT_BLUE,
+            highlight_colors: [Color32::YELLOW, Color32::BROWN, Color32::LIGHT_GREEN, Color32::WHITE,
+                               Color32::KHAKI, Color32::DARK_BLUE, Color32::DARK_GREEN, Color32::GOLD],
+            
+            shortcuts: Shortcuts::new(),
+        };
+
+        let config_table: Table = config_text.parse::<Table>().expect("Invalid configuration file");
+        // Load in presets
+        if let Some(val) = config_table.get("preset"){
+            for e in val.as_array().unwrap() {
+                let mut igs: InitialGameSettings = Default::default();
+                if let Some(n) = e.get("name") {
+                    igs.name = n.as_str().unwrap().into();
+                }
+                if let Some(size_value) = e.get("size") {
+                    if let Some(a) = size_value.as_array() {
+                        if a.len() != DIMENSIONS_COUNT {
+                            println!("Warning: `size` should be array of {} elements, {} found", DIMENSIONS_COUNT, a.len());
+                        }
+                        for ii in 0..min(a.len(), DIMENSIONS_COUNT) {
+                            if let Some(i) = a[ii].as_integer().map(|e| e.clamp(1, 100) as usize) {
+                                igs.size[ii] = i;
+                            } else {
+                                println!("Warning: value at index {} of `size` is invalid", ii);
+                            }
+                        }
+                    } else {
+                        println!("Warning: value of `size` is invalid");
+                    }
+                }
+                if let Some(wrap_value) = e.get("wrap") {
+                    if let Some(a) = wrap_value.as_array() {
+                        if a.len() != DIMENSIONS_COUNT {
+                            println!("Warning: `wrap` should be array of {} elements, {} found", DIMENSIONS_COUNT, a.len());
+                        }
+                        for ii in 0..min(a.len(), DIMENSIONS_COUNT) {
+                            if let Some(b) = a[ii].as_bool() {
+                                igs.wrap[ii] = b;
+                            } else {
+                                println!("Warning: value at index {} of `wrap` is invalid", ii);
+                            }
+                        }
+                    } else {
+                        println!("Warning: value of `wrap` is invalid");
+                    }
+                }
+                if let Some(mines_value) = e.get("mines") {
+                    if let Some(i) = mines_value.as_integer()
+                                        .map(|e| (e as u32)
+                                                .clamp(1, (igs.size.iter().fold(1, |p, v| p*v) - 1) as u32)) {
+                        igs.mines = i;
+                    } else {
+                        println!("Warning: value of `mines` is invalid");
+                    }
+                }
+                if let Some(seed_value) = e.get("seed") {
+                    if let Some(s) = seed_value.as_str() {
+                        igs.seed = Some(s.into());
+                    } else {
+                        println!("Warning: value of `seed` is invalid");
+                    }
+                }
+                ret.presets.push(igs);
+            }
+        }
+        
+        // Load in other settings
+        if let Some(val) = config_table.get("default_preset") {
+            if let Some(i) = val.as_integer().map(|e| e as usize) {
+                if i < ret.presets.len() {
+                    ret.current_initial_settings = ret.presets[i].clone();
+                    ret.next_initial_settings = ret.presets[i].clone();
+                    ret.next_selected_preset = Some(i as u32);
+                } else {
+                    println!("Warning: value of `default_preset` is outside presets range");
+                }
+            } else {
+                println!("Warning: value of `default_preset` is invalid");
+            }
+        }
+        
+        if let Some(val) = config_table.get("highlight_colors") {
+            // Snippet by YgorSouza at https://github.com/emilk/egui/issues/3466#issuecomment-1762923933
+            fn color_from_hex(hex: &str) -> Option<Color32> {
+                let hex = hex.trim_start_matches('#');
+                let alpha = match hex.len() {
+                    6 => false,
+                    8 => true,
+                    _ => None?,
+                };
+                u32::from_str_radix(hex, 16)
+                    .ok()
+                    .map(|u| if alpha { u } else { u << 8 | 0xff })
+                    .map(u32::to_be_bytes)
+                    .map(|[r, g, b, a]| Color32::from_rgba_unmultiplied(r, g, b, a))
+            }
+            let a = val.as_array().unwrap();
+            for ii in 0..8 {
+                ret.highlight_colors[ii] = color_from_hex(a[ii].as_str().unwrap()).unwrap();
+            }
+        };
+        
+        if let Some(val) = config_table.get("show_timer_miliseconds") {
+            ret.show_timer_miliseconds = val.as_bool().unwrap();
+        }
+        if let Some(val) = config_table.get("show_delta") {
+            ret.show_delta = val.as_bool().unwrap();
+        }
+        if let Some(val) = config_table.get("show_neighbors") {
+            ret.show_neighbors = val.as_bool().unwrap();
+        }
+        if let Some(val) = config_table.get("unlimited_zoom") {
+            ret.unlimited_zoom = val.as_bool().unwrap();
+        }
+        if let Some(val) = config_table.get("probe_marked") {
+            ret.probe_marked = val.as_bool().unwrap();
+        }
+        
+        if let Some(val) = config_table.get("tile_spacings") {
+            let a = val.as_array().unwrap();
+            for ii in 0..4 {
+                let valf = a[ii].as_float().unwrap() as f32;
+                if valf >= 0.0 {
+                    ret.tile_spacings[ii] = valf;
+                }
+            }
+        }
+        
+        ret
+    }
+
     fn reset(&mut self) {
         self.game = None;
         self.cursor_mode = CursorMode::ProbeAndMark;
@@ -298,198 +486,6 @@ impl MinesweeperViewController {
         // Translate to center
         self.view_origin.x = (screen_size.x - 10.0 - v_block_size*self.zoom_factor) / 2.0 + padding_x;
         self.view_origin.y = (screen_size.y - 50.0 - w_block_size*self.zoom_factor) / 2.0 + 20.0 + padding_y;
-    }
-}
-
-impl Default for MinesweeperViewController {
-    fn default() -> Self {
-        // Sanity check
-        //println!("{}", std::mem::size_of::<CellState>());
-        
-        match env::current_dir() {
-            Ok(p) => println!("The current directory is {}", p.display()),
-            Err(_) => println!("The current directory cannot be obtained")
-        };
-
-        let settings = InitialGameSettings {
-            name: "Custom".into(),
-            size: [4, 4, 4, 4, 1, 1],
-            wrap: [false, false, false, false, false, false],
-            mines: 20,
-            seed: None,
-        };
-        
-        let mut ret = Self {
-            current_initial_settings: settings.clone(),
-            next_initial_settings: settings,
-            
-            next_selected_preset: None,
-            presets: vec![],
-            
-            game: None,
-            start_time: None,
-            end_time: None,
-            
-            cursor_mode: CursorMode::ProbeAndMark,
-            selected_highlighters: 1,
-            
-            view_origin: Pos2::new(0.0, 20.0),
-            zoom_factor: 1.0,
-            cell_edge: 30.0,
-            tile_spacings: [0.0, 0.0, 10.0, 10.0, 20.0, 20.0],
-            
-            show_timer_miliseconds: false,
-            show_delta: true,
-            show_neighbors: true,
-            unlimited_zoom: false,
-            probe_marked: false,
-            neighbor_coords: None,
-            
-            new_game_window_enabled: false,
-            rules_window_enabled: false,
-            controls_window_enabled: false,
-            about_window_enabled: false,
-            
-            selection_color: Color32::RED,
-            center_color: Color32::LIGHT_RED,
-            neighbor_color: Color32::LIGHT_BLUE,
-            highlight_colors: [Color32::YELLOW, Color32::BROWN, Color32::LIGHT_GREEN, Color32::WHITE,
-                               Color32::KHAKI, Color32::DARK_BLUE, Color32::DARK_GREEN, Color32::GOLD],
-            
-            shortcuts: Shortcuts::new(),
-        };
-        
-        let config_text = match fs::read_to_string("config.toml") {
-            Ok(s) => s,
-            Err(_) => {
-                println!("config could not be read");
-                "".into()
-            }
-        }; //.unwrap_or_else(|_| "".into());
-        let config_table: Table = config_text.parse::<Table>().expect("Invalid configuration file");
-
-        // Load in presets
-        if let Some(val) = config_table.get("preset"){
-            for e in val.as_array().unwrap() {
-                let mut igs: InitialGameSettings = Default::default();
-                if let Some(n) = e.get("name") {
-                    igs.name = n.as_str().unwrap().into();
-                }
-                if let Some(size_value) = e.get("size") {
-                    if let Some(a) = size_value.as_array() {
-                        if a.len() != DIMENSIONS_COUNT {
-                            println!("Warning: `size` should be array of {} elements, {} found", DIMENSIONS_COUNT, a.len());
-                        }
-                        for ii in 0..min(a.len(), DIMENSIONS_COUNT) {
-                            if let Some(i) = a[ii].as_integer().map(|e| e.clamp(1, 100) as usize) {
-                                igs.size[ii] = i;
-                            } else {
-                                println!("Warning: value at index {} of `size` is invalid", ii);
-                            }
-                        }
-                    } else {
-                        println!("Warning: value of `size` is invalid");
-                    }
-                }
-                if let Some(wrap_value) = e.get("wrap") {
-                    if let Some(a) = wrap_value.as_array() {
-                        if a.len() != DIMENSIONS_COUNT {
-                            println!("Warning: `wrap` should be array of {} elements, {} found", DIMENSIONS_COUNT, a.len());
-                        }
-                        for ii in 0..min(a.len(), DIMENSIONS_COUNT) {
-                            if let Some(b) = a[ii].as_bool() {
-                                igs.wrap[ii] = b;
-                            } else {
-                                println!("Warning: value at index {} of `wrap` is invalid", ii);
-                            }
-                        }
-                    } else {
-                        println!("Warning: value of `wrap` is invalid");
-                    }
-                }
-                if let Some(mines_value) = e.get("mines") {
-                    if let Some(i) = mines_value.as_integer()
-                                        .map(|e| (e as u32)
-                                                .clamp(1, (igs.size.iter().fold(1, |p, v| p*v) - 1) as u32)) {
-                        igs.mines = i;
-                    } else {
-                        println!("Warning: value of `mines` is invalid");
-                    }
-                }
-                if let Some(seed_value) = e.get("seed") {
-                    if let Some(s) = seed_value.as_str() {
-                        igs.seed = Some(s.into());
-                    } else {
-                        println!("Warning: value of `seed` is invalid");
-                    }
-                }
-                ret.presets.push(igs);
-            }
-        }
-        
-        // Load in other settings
-        if let Some(val) = config_table.get("default_preset") {
-            if let Some(i) = val.as_integer().map(|e| e as usize) {
-                if i < ret.presets.len() {
-                    ret.current_initial_settings = ret.presets[i].clone();
-                    ret.next_initial_settings = ret.presets[i].clone();
-                    ret.next_selected_preset = Some(i as u32);
-                } else {
-                    println!("Warning: value of `default_preset` is outside presets range");
-                }
-            } else {
-                println!("Warning: value of `default_preset` is invalid");
-            }
-        }
-        
-        if let Some(val) = config_table.get("highlight_colors") {
-            // Snippet by YgorSouza at https://github.com/emilk/egui/issues/3466#issuecomment-1762923933
-            fn color_from_hex(hex: &str) -> Option<Color32> {
-                let hex = hex.trim_start_matches('#');
-                let alpha = match hex.len() {
-                    6 => false,
-                    8 => true,
-                    _ => None?,
-                };
-                u32::from_str_radix(hex, 16)
-                    .ok()
-                    .map(|u| if alpha { u } else { u << 8 | 0xff })
-                    .map(u32::to_be_bytes)
-                    .map(|[r, g, b, a]| Color32::from_rgba_unmultiplied(r, g, b, a))
-            }
-            let a = val.as_array().unwrap();
-            for ii in 0..8 {
-                ret.highlight_colors[ii] = color_from_hex(a[ii].as_str().unwrap()).unwrap();
-            }
-        };
-        
-        if let Some(val) = config_table.get("show_timer_miliseconds") {
-            ret.show_timer_miliseconds = val.as_bool().unwrap();
-        }
-        if let Some(val) = config_table.get("show_delta") {
-            ret.show_delta = val.as_bool().unwrap();
-        }
-        if let Some(val) = config_table.get("show_neighbors") {
-            ret.show_neighbors = val.as_bool().unwrap();
-        }
-        if let Some(val) = config_table.get("unlimited_zoom") {
-            ret.unlimited_zoom = val.as_bool().unwrap();
-        }
-        if let Some(val) = config_table.get("probe_marked") {
-            ret.probe_marked = val.as_bool().unwrap();
-        }
-        
-        if let Some(val) = config_table.get("tile_spacings") {
-            let a = val.as_array().unwrap();
-            for ii in 0..4 {
-                let valf = a[ii].as_float().unwrap() as f32;
-                if valf >= 0.0 {
-                    ret.tile_spacings[ii] = valf;
-                }
-            }
-        }
-        
-        ret
     }
 }
 
