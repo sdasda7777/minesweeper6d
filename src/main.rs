@@ -21,7 +21,7 @@ use eframe::{egui, emath::Align2};
 use eframe::egui::{Button, containers::panel::TopBottomPanel, Key, KeyboardShortcut, 
                    menu, Modifiers, PointerButton, Response, RichText, Sense};
 use eframe::epaint::{Color32, FontId, Pos2, Rect, Rounding, Shadow, Shape, Stroke};
-use std::{cmp::min, fs};
+use std::{cmp::min, fs, time::Duration};
 use web_time::SystemTime;
 use toml::Table;
 
@@ -97,7 +97,6 @@ fn main() {
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();
 
     let web_options = eframe::WebOptions::default();
-    let config_content = "".into();
     
     wasm_bindgen_futures::spawn_local(async {
         eframe::WebRunner::new()
@@ -111,12 +110,17 @@ fn main() {
                         style.visuals.window_rounding = Rounding::ZERO;
                         style.visuals.window_shadow = Shadow::NONE;
                     });
-                    Box::new(MinesweeperViewController::new(config_content))
+                    Box::new(MinesweeperViewController::new(get_config()))
                 }),
             )
             .await
             .expect("failed to start eframe");
     });
+}
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    fn get_config() -> String;
 }
 
 struct MinesweeperViewController {
@@ -287,23 +291,9 @@ impl MinesweeperViewController {
         }
         
         if let Some(val) = config_table.get("highlight_colors") {
-            // Snippet by YgorSouza at https://github.com/emilk/egui/issues/3466#issuecomment-1762923933
-            fn color_from_hex(hex: &str) -> Option<Color32> {
-                let hex = hex.trim_start_matches('#');
-                let alpha = match hex.len() {
-                    6 => false,
-                    8 => true,
-                    _ => None?,
-                };
-                u32::from_str_radix(hex, 16)
-                    .ok()
-                    .map(|u| if alpha { u } else { u << 8 | 0xff })
-                    .map(u32::to_be_bytes)
-                    .map(|[r, g, b, a]| Color32::from_rgba_unmultiplied(r, g, b, a))
-            }
             let a = val.as_array().unwrap();
             for ii in 0..8 {
-                ret.highlight_colors[ii] = color_from_hex(a[ii].as_str().unwrap()).unwrap();
+                ret.highlight_colors[ii] = Color32::from_hex(a[ii].as_str().unwrap()).unwrap();
             }
         };
         
@@ -494,8 +484,7 @@ impl eframe::App for MinesweeperViewController {
         if self.show_timer_miliseconds {
             ctx.request_repaint();
         } else {
-            // TODO: This egui function is bugged, uncomment next line when fixed
-            //ctx.request_repaint_after(Duration::new(1,0));
+            ctx.request_repaint_after(Duration::new(0,500));
         }
         
         let mut new_game_window_enabled = self.new_game_window_enabled;
@@ -956,14 +945,14 @@ Code written by sdasda7777 (github.com/sdasda7777) (except where noted otherwise
                 let mut neighbor_coords = None;
                 let mut mouse_coords = None;
                 
-                if self.show_neighbors && !ui.input(|i| i.modifiers.matches(Modifiers::ALT)) {
-                    if ui.input(|i| i.modifiers.matches(Modifiers::SHIFT)) && self.neighbor_coords != None {
+                if self.show_neighbors && !ui.input(|i| i.modifiers.matches_logically(Modifiers::ALT)) {
+                    if ui.input(|i| i.modifiers.matches_logically(Modifiers::SHIFT)) && self.neighbor_coords != None {
                         neighbor_coords = self.neighbor_coords;
                     }
                 }
                 if let Some(coords) = self.get_coords(pos) {
                     if neighbor_coords == None && self.show_neighbors
-                       && !ui.input(|i| i.modifiers.matches(Modifiers::ALT)) {
+                       && !ui.input(|i| i.modifiers.matches_logically(Modifiers::ALT)) {
                         self.neighbor_coords = Some(coords);
                         neighbor_coords = Some(coords);
                     }
@@ -1161,7 +1150,7 @@ Code written by sdasda7777 (github.com/sdasda7777) (except where noted otherwise
             }
             // Zoom/unzoom
             if painter_response.hovered() {
-                let delta = ctx.input(|i| i.scroll_delta);
+                let delta = ctx.input(|i| i.raw_scroll_delta);
                 //println!("{:?}", delta.y);
                 if delta.y > 0.0 && (self.zoom_factor < 5.0 || self.unlimited_zoom) {
                     if let Some(pos) = ctx.pointer_interact_pos() {
@@ -1183,24 +1172,22 @@ Code written by sdasda7777 (github.com/sdasda7777) (except where noted otherwise
             //   The check below is to prevent triggering when trying to type
             //     the seed in the new game window. It's a bit crude, but it works.
             if !self.new_game_window_enabled {
-                // TODO: `consume_shortcut` instead of `key_pressed` would allow for more flexibility,
-                // but `consume_shortcut` doesn't allow indeterminate states for modifiers (at least currently)
-                if ui.input_mut(|i| i.key_pressed(self.shortcuts.probe_mark_shortcut.key)) {
+                if ui.input_mut(|i| i.consume_shortcut(&self.shortcuts.probe_mark_shortcut)) {
                     self.try_set_cursor(CursorMode::ProbeAndMark);
                 }
-                if ui.input_mut(|i| i.key_pressed(self.shortcuts.highlighter_shortcut.key)) {
+                if ui.input_mut(|i| i.consume_shortcut(&self.shortcuts.highlighter_shortcut)) {
                     self.try_set_cursor(CursorMode::Highlighter);
                 }
                 for ii in 0..8 {
-                    if ui.input_mut(|i| i.key_pressed(self.shortcuts.highlight_group_shortcuts[ii].key)) {
+                    if ui.input_mut(|i| i.consume_shortcut(&self.shortcuts.highlight_group_shortcuts[ii])) {
                         self.selected_highlighters ^= 1 << ii;
                     }
                 }
                 
-                if ui.input_mut(|i| i.key_pressed(self.shortcuts.reset_view_shortcut.key)) {
+                if ui.input_mut(|i| i.consume_shortcut(&self.shortcuts.reset_view_shortcut)) {
                     self.reset_view();
                 }
-                if ui.input_mut(|i| i.key_pressed(self.shortcuts.zoom_to_fit_shortcut.key)) {
+                if ui.input_mut(|i| i.consume_shortcut(&self.shortcuts.zoom_to_fit_shortcut)) {
                     self.zoom_to_fit(ctx.screen_rect().max);
                 }
             }
