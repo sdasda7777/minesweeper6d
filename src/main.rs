@@ -3,12 +3,15 @@
 #![feature(step_trait)]
 
 extern crate eframe;
-extern crate hhmmss;
 extern crate itertools;
 extern crate toml;
 extern crate rand_chacha;
 
 use itertools::Itertools;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::wasm_bindgen;
+
+pub mod hhmmss;
 use hhmmss::Hhmmss;
 
 pub mod bwi;
