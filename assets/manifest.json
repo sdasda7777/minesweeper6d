@@ -1,6 +1,6 @@
 {
-  "name": "egui Template PWA",
-  "short_name": "egui-template-pwa",
+  "name": "Minesweeper6D PWA",
+  "short_name": "minesweeper6d-pwa",
   "icons": [
     {
       "src": "./icon-256.png",
