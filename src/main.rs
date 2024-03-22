@@ -18,11 +18,16 @@ use bwi::BWI;
 pub mod minesweeper_model;
 use minesweeper_model::{CellState, DIMENSIONS_COUNT, GameBoard, GameState, InitialGameSettings};
 
+use std::{cmp::min, time::Duration};
+#[cfg(not(target_arch = "wasm32"))]
+use std::fs;
+#[cfg(target_arch = "wasm32")]
+use std::include_str;
+
 use eframe::{egui, emath::Align2};
 use eframe::egui::{Button, containers::panel::TopBottomPanel, Key, KeyboardShortcut, 
                    menu, Modifiers, PointerButton, Response, RichText, Sense};
 use eframe::epaint::{Color32, FontId, Pos2, Rect, Rounding, Shadow, Shape, Stroke};
-use std::{cmp::min, fs, time::Duration, include_str};
 use web_time::SystemTime;
 use toml::Table;
 
