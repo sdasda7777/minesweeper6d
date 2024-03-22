@@ -8,8 +8,6 @@ extern crate toml;
 extern crate rand_chacha;
 
 use itertools::Itertools;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::wasm_bindgen;
 
 pub mod hhmmss;
 use hhmmss::Hhmmss;
@@ -24,7 +22,7 @@ use eframe::{egui, emath::Align2};
 use eframe::egui::{Button, containers::panel::TopBottomPanel, Key, KeyboardShortcut, 
                    menu, Modifiers, PointerButton, Response, RichText, Sense};
 use eframe::epaint::{Color32, FontId, Pos2, Rect, Rounding, Shadow, Shape, Stroke};
-use std::{cmp::min, fs, time::Duration};
+use std::{cmp::min, fs, time::Duration, include_str};
 use web_time::SystemTime;
 use toml::Table;
 
@@ -100,6 +98,7 @@ fn main() {
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();
 
     let web_options = eframe::WebOptions::default();
+    let config_content = include_str!("../config.toml").to_owned();
     
     wasm_bindgen_futures::spawn_local(async {
         eframe::WebRunner::new()
@@ -113,17 +112,12 @@ fn main() {
                         style.visuals.window_rounding = Rounding::ZERO;
                         style.visuals.window_shadow = Shadow::NONE;
                     });
-                    Box::new(MinesweeperViewController::new(get_config()))
+                    Box::new(MinesweeperViewController::new(config_content))
                 }),
             )
             .await
             .expect("failed to start eframe");
     });
-}
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-extern "C" {
-    fn get_config() -> String;
 }
 
 struct MinesweeperViewController {
