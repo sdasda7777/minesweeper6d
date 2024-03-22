@@ -1,4 +1,4 @@
-var cacheName = 'egui-template-pwa';
+var cacheName = 'minesweeper6d-pwa';
 var filesToCache = [
   './',
   './index.html',
