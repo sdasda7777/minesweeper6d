@@ -1150,21 +1150,18 @@ Code written by sdasda7777 (github.com/sdasda7777) (except where noted otherwise
                     }
                 }
             }
+            // TODO: accept zoom_delta()
             // Zoom/unzoom
             if painter_response.hovered() {
-                let delta = ctx.input(|i| i.raw_scroll_delta);
-                //println!("{:?}", delta.y);
-                if delta.y > 0.0 && (self.zoom_factor < 5.0 || self.unlimited_zoom) {
+                let scroll_delta = ctx.input(|i| i.raw_scroll_delta);
+                //println!("{:?}", scroll_delta.y);
+                
+                let factor = if scroll_delta.y > 0.0 && (self.zoom_factor < 5.0 || self.unlimited_zoom) { 1.5 } else if scroll_delta.y < 0.0 && (self.zoom_factor > 0.01 || self.unlimited_zoom) { 0.66 } else { 0.0 };
+                
+                if factor != 0.0 {
                     if let Some(pos) = ctx.pointer_interact_pos() {
                         let old_factor = self.zoom_factor;
-                        self.zoom_factor *= 1.5;
-                        self.view_origin.x -= ((pos.x - self.view_origin.x) / old_factor) * (self.zoom_factor - old_factor);
-                        self.view_origin.y -= ((pos.y - self.view_origin.y) / old_factor) * (self.zoom_factor - old_factor);
-                    }
-                } else if delta.y < 0.0 && (self.zoom_factor > 0.01 || self.unlimited_zoom) {
-                    if let Some(pos) = ctx.pointer_interact_pos() {
-                        let old_factor = self.zoom_factor;
-                        self.zoom_factor /= 1.5;
+                        self.zoom_factor *= factor;
                         self.view_origin.x -= ((pos.x - self.view_origin.x) / old_factor) * (self.zoom_factor - old_factor);
                         self.view_origin.y -= ((pos.y - self.view_origin.y) / old_factor) * (self.zoom_factor - old_factor);
                     }
