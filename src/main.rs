@@ -610,10 +610,19 @@ If neighbor hints are enabled, holding Shift freezes them in place, whereas hold
         if about_window_enabled {
             egui::Window::new("About")
                 .open(&mut about_window_enabled).show(ctx, |ui| {
-               ui.label(format!(
-r"Minesweeper4D (version {})
 
-Code written by sdasda7777 (github.com/sdasda7777) (except where noted otherwise) with a lot of help from amazing members of the egui Discord server", option_env!("CARGO_PKG_VERSION").unwrap()));
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = 10.0;
+                    ui.label(format!("Minesweeper4D\n(version {}, built on {})",
+                                     env!("CARGO_PKG_VERSION"),
+                                     env!("BUILD_DATE")));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.hyperlink_to("GitHub page", "https://github.com/sdasda7777/minesweeper6d");
+                        ui.label("(https://github.com/sdasda7777/minesweeper6d)");
+                    });
+
+                    ui.label("Code written by sdasda7777 (github.com/sdasda7777) (except where noted otherwise) with a lot of help from amazing members of the egui Discord server.");
+                });
             });
         }
         self.about_window_enabled = about_window_enabled;
