@@ -342,7 +342,12 @@ impl MinesweeperViewController {
                                             self.current_initial_settings.mines,
                                             None,
                                             u64::from_str_radix(&seed, 16).ok()));
-            self.game.as_mut().unwrap().probe_at(initial, true);
+            match self.game.as_mut().unwrap().probe_at(initial, true) {
+                GameState::Victory | GameState::Loss => {
+                    self.end_time = Some(SystemTime::now());
+                },
+                GameState::Running => {}
+            }
         } else {
             self.game = Some(GameBoard::new(self.current_initial_settings.size,
                                             self.current_initial_settings.wrap,
@@ -542,7 +547,7 @@ impl eframe::App for MinesweeperViewController {
                         .clamp_range(1..=(self.next_initial_settings.size.iter().fold(1, |p, v| p*v)-1)));
                 });
                 
-                let mut checkbox_state = self.next_initial_settings.seed != None;
+                let mut checkbox_state = self.next_initial_settings.seed == None;
                 let checkbox = egui::Checkbox::new(&mut checkbox_state, "Generate the board based on the first click");
                 if ui.add(checkbox).clicked() {
                     if self.next_initial_settings.seed == None {
